@@ -8,30 +8,30 @@ from app.models import UsuarioModel
 from uuid import uuid4
 import logging
 
-# Configuração do logger para registrar eventos da aplicação
+# Logger configuration to record application events
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# Configuração do RabbitMQ com credenciais e host definidos nas variáveis de ambiente
+# RabbitMQ configuration with credentials and host defined in environment variables
 RABBITMQ_URL = f"amqp://{os.environ['RABBITMQ_USER']}:{os.environ['RABBITMQ_PASS']}@{os.environ['RABBITMQ_HOST']}/"
 QUEUE_NAME = "mensagens"
 
 async def get_rabbit_connection():
     """
-    Estabelece e retorna uma conexão assíncrona com o RabbitMQ.
-    Essa conexão será usada para enviar mensagens para a fila.
+    Establishes and returns an asynchronous connection to RabbitMQ.
+    This connection will be used to send messages to the queue.
     """
     return await aio_pika.connect_robust(RABBITMQ_URL)
 
 @app.post("/send")
 async def send_message(message: str):
     """
-    Envia uma mensagem para a fila do RabbitMQ.
-    - Cria uma conexão com o RabbitMQ.
-    - Abre um canal de comunicação.
-    - Publica a mensagem na fila definida.
+    Sends a message to the RabbitMQ queue.
+    - Creates a connection to RabbitMQ.
+    - Opens a communication channel.
+    - Publishes the message to the specified queue.
     """
     connection = await get_rabbit_connection()
     async with connection:
@@ -45,11 +45,11 @@ async def send_message(message: str):
 @app.post("/criar_usuario")
 async def criar_usuario(nome: str, email: str, password: str, session: Session = Depends(get_session)):
     """
-    Cria um novo usuário no banco de dados e publica os dados no RabbitMQ.
-    - Gera um UUID para o usuário.
-    - Adiciona e confirma a transação no banco de dados.
-    - Caso ocorra erro, faz rollback da transação.
-    - Envia os dados do usuário para a fila do RabbitMQ.
+    Creates a new user in the database and publishes the data to RabbitMQ.
+    - Generates a UUID for the user.
+    - Adds the user and commits the database transaction.
+    - Rolls back the transaction if an error occurs.
+    - Sends the user data to the RabbitMQ queue.
     """
     try:
         user_model = UsuarioModel(id=uuid4(), nome=nome, email=email, password=password)
@@ -58,8 +58,8 @@ async def criar_usuario(nome: str, email: str, password: str, session: Session =
     except Exception as e:
         session.rollback()
         return {"error": str(e)}
-    
-    # Publica os dados do novo usuário no RabbitMQ
+
+    # Publishes the new user's data to RabbitMQ
     connection = await get_rabbit_connection()
     async with connection:
         channel = await connection.channel()
@@ -73,21 +73,21 @@ async def criar_usuario(nome: str, email: str, password: str, session: Session =
             }).encode()),
             routing_key=QUEUE_NAME
         )
-    return {"mensagem": "Usuário criado com sucesso."}
+    return {"mensagem": "User created successfully."}
 
 @app.get("/listar_usuarios")
 async def listar_usuarios(session: Session = Depends(get_session)):
     """
-    Retorna a lista de todos os usuários cadastrados no banco de dados.
+    Returns a list of all users registered in the database.
     """
     return session.query(UsuarioModel).all()
 
 @app.on_event("startup")
 async def startup_event():
     """
-    Executado na inicialização do serviço.
-    - Cria as tabelas no banco de dados caso ainda não existam.
-    - Registra a ação no log.
+    Executed when the service starts.
+    - Creates the database tables if they do not already exist.
+    - Logs the operation.
     """
     Base.metadata.create_all(bind=engine)
-    logger.info("Tabelas criadas com sucesso.")
+    logger.info("Tables created successfully.")

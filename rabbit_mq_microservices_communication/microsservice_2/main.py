@@ -9,24 +9,24 @@ from app.database import get_session, Base, engine
 from app.models import UsuarioModel
 from uuid import uuid4
 
-# Configuração do logger para registrar eventos e erros
+# Logger configuration to record events and errors
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# Configuração do RabbitMQ com credenciais e host definidos nas variáveis de ambiente
+# RabbitMQ configuration with credentials and host defined in environment variables
 RABBITMQ_URL = f"amqp://{os.environ['RABBITMQ_USER']}:{os.environ['RABBITMQ_PASS']}@{os.environ['RABBITMQ_HOST']}/"
 QUEUE_NAME = "mensagens"
 
 async def process_incoming_message(message: aio_pika.IncomingMessage):
     """
-    Processa mensagens recebidas da fila do RabbitMQ.
-    - Faz a leitura e o reconhecimento (ack) da mensagem.
-    - Decodifica o JSON e extrai os dados do usuário.
-    - Insere o usuário no banco de dados.
+    Processes messages received from the RabbitMQ queue.
+    - Reads and acknowledges (ack) the message.
+    - Decodes the JSON and extracts the user data.
+    - Inserts the user into the database.
     """
-    message.ack()  # Confirma o recebimento da mensagem
+    message.ack()  # Acknowledges receipt of the message
     body = message.body
     logger.info("Received message")
 
@@ -34,33 +34,33 @@ async def process_incoming_message(message: aio_pika.IncomingMessage):
         parsed_message = json.loads(body)
         created_user = parsed_message['usuario']
 
-        # Obtém uma sessão do banco de dados
-        session: Session = next(get_session())  
+        # Gets a database session
+        session: Session = next(get_session())
         try:
-            # Cria um novo usuário com os dados da mensagem
+            # Creates a new user with the data from the message
             user_model = UsuarioModel(
                 id=created_user['id'],
                 nome=created_user['nome'],
                 email=created_user['email']
             )
-            
+
             session.add(user_model)
             session.commit()
-            logger.info(f"Usuário {user_model.id} criado com sucesso.")
+            logger.info(f"User {user_model.id} created successfully.")
         except Exception as e:
             session.rollback()
-            logger.error(f"Erro ao processar mensagem: {str(e)}")
+            logger.error(f"Error processing message: {str(e)}")
         finally:
             session.close()
-        
+
         logger.info(f"Message content: {parsed_message}")
 
 async def consume(loop):
     """
-    Inicializa o consumidor de mensagens do RabbitMQ.
-    - Estabelece a conexão com o RabbitMQ.
-    - Declara a fila e começa a escutar mensagens.
-    - Chama 'process_incoming_message' ao receber uma nova mensagem.
+    Initializes the RabbitMQ message consumer.
+    - Establishes a connection to RabbitMQ.
+    - Declares the queue and starts listening for messages.
+    - Calls 'process_incoming_message' when a new message arrives.
     """
     try:
         connection = await aio_pika.connect_robust(RABBITMQ_URL, loop=loop)
@@ -70,24 +70,24 @@ async def consume(loop):
         logger.info("Waiting for messages...")
         return connection
     except Exception as e:
-        logger.error(f"Erro no consumidor: {e}")
+        logger.error(f"Consumer error: {e}")
 
 @app.get("/listar_usuarios")
 async def listar_usuarios(session: Session = Depends(get_session)):
-    """ Retorna a lista de usuários cadastrados no banco de dados. """
+    """Returns the list of users registered in the database."""
     return session.query(UsuarioModel).all()
 
 @app.on_event("startup")
 async def startup_event():
     """
-    Executado na inicialização do serviço.
-    - Cria as tabelas no banco de dados se ainda não existirem.
-    - Inicia o consumidor de mensagens do RabbitMQ em segundo plano.
+    Executed when the service starts.
+    - Creates the database tables if they do not already exist.
+    - Starts the RabbitMQ message consumer in the background.
     """
     Base.metadata.create_all(bind=engine)
-    logger.info("Tabelas criadas com sucesso.")
+    logger.info("Tables created successfully.")
 
-    # Obtém o loop de eventos atual e inicia o consumo de mensagens do RabbitMQ
+    # Gets the current event loop and starts consuming RabbitMQ messages
     loop = asyncio.get_running_loop()
     task = loop.create_task(consume(loop=loop))
     await task
