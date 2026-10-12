@@ -15,7 +15,6 @@ Before getting started, make sure the following are installed in your environmen
 
    ```sh
    cd distributed_jobs
-````
 
 2. Start the containers using Docker Compose:
    sh

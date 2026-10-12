@@ -1,7 +1,7 @@
 FROM postgres:13
 
-# Copiar script de inicialização para dentro do contêiner
+# Copies the initialization script into the container
 COPY init.sql /docker-entrypoint-initdb.d/
 
-# Expor a porta padrão do PostgreSQL
+# Exposes the default PostgreSQL port
 EXPOSE 5432

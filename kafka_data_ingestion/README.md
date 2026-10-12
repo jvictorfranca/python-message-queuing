@@ -1,40 +1,46 @@
-# Ingestão de Dados
+# Data Ingestion
 
-Este diretório demonstra o uso de filas em pipelines de ingestão e processamento de dados.
+This directory demonstrates the use of queues in data ingestion and processing pipelines.
 
-## Requisitos
+## Requirements
 
-Antes de iniciar, certifique-se de ter instalado em seu ambiente:
+Before getting started, make sure the following are installed in your environment:
 
 - **Docker**
-- **Extensão do Docker para VS Code**
+- **Docker extension for VS Code**
 
-## Como Executar os Exemplos
+## How to Run the Examples
 
-1. Acesse a pasta do módulo:
+1. Navigate to the module directory:
+
    ```sh
-   cd ingestao_dados
+   cd data_ingestion
+
+2. Start the containers using Docker Compose:
+   sh
    ```
-2. Inicie os containers com o Docker Compose:
-   ```sh
    docker compose up -d
    ```
-3. Para interromper a execução, utilize:
-   ```sh
+3. To stop the containers and remove associated volumes, run:
+   sh
+   ```
    docker compose down -v
    ```
 
-### Endpoints Disponíveis
+### Available Endpoints
 
-- **Kibana**: [http://localhost:5601](http://localhost:5601)
-- **Kafka Control Center**: [http://localhost:9021](http://localhost:9021)
+- Kibana: [http://localhost:5601](<http://localhost:5601>)
+- Kafka Control Center: [http://localhost:9021](<http://localhost:9021>)
 
-Caso não consiga acessar um endpoint usando `localhost`, tente `0.0.0.0` ou `127.0.0.1`.
+If you cannot access an endpoint using `localhost`, try `0.0.0.0` or `127.0.0.1` instead.
 
-### Acessando o Banco de Dados PostgreSQL
+### Accessing the PostgreSQL Database
 
-Para acessar o banco de dados dentro do container:
+To access the database inside the container, run:
 
-```sh
+sh
+```
 psql usuarios
+```
+
 ```
