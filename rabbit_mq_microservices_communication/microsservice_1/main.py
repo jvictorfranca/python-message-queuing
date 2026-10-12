@@ -16,7 +16,7 @@ app = FastAPI()
 
 # RabbitMQ configuration with credentials and host defined in environment variables
 RABBITMQ_URL = f"amqp://{os.environ['RABBITMQ_USER']}:{os.environ['RABBITMQ_PASS']}@{os.environ['RABBITMQ_HOST']}/"
-QUEUE_NAME = "mensagens"
+QUEUE_NAME = "messages"
 
 async def get_rabbit_connection():
     """
@@ -42,8 +42,8 @@ async def send_message(message: str):
         )
     return {"status": "Message sent"}
 
-@app.post("/criar_usuario")
-async def criar_usuario(nome: str, email: str, password: str, session: Session = Depends(get_session)):
+@app.post("/create_user")
+async def create_user(name: str, email: str, password: str, session: Session = Depends(get_session)):
     """
     Creates a new user in the database and publishes the data to RabbitMQ.
     - Generates a UUID for the user.
@@ -52,7 +52,7 @@ async def criar_usuario(nome: str, email: str, password: str, session: Session =
     - Sends the user data to the RabbitMQ queue.
     """
     try:
-        user_model = UsuarioModel(id=uuid4(), nome=nome, email=email, password=password)
+        user_model = UsuarioModel(id=uuid4(), nome=name, email=email, password=password)
         session.add(user_model)
         session.commit()
     except Exception as e:
@@ -65,18 +65,18 @@ async def criar_usuario(nome: str, email: str, password: str, session: Session =
         channel = await connection.channel()
         await channel.default_exchange.publish(
             aio_pika.Message(body=json.dumps({
-                "usuario": {
+                "user": {
                     "id": str(user_model.id),
-                    "nome": user_model.nome,
+                    "name": user_model.nome,
                     "email": user_model.email
                 }
             }).encode()),
             routing_key=QUEUE_NAME
         )
-    return {"mensagem": "User created successfully."}
+    return {"message": "User created successfully."}
 
-@app.get("/listar_usuarios")
-async def listar_usuarios(session: Session = Depends(get_session)):
+@app.get("/list_users")
+async def list_users(session: Session = Depends(get_session)):
     """
     Returns a list of all users registered in the database.
     """

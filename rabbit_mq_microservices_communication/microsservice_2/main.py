@@ -6,7 +6,7 @@ import os
 import logging
 from sqlalchemy.orm import Session
 from app.database import get_session, Base, engine
-from app.models import UsuarioModel
+from app.models import UserModel
 from uuid import uuid4
 
 # Logger configuration to record events and errors
@@ -17,7 +17,7 @@ app = FastAPI()
 
 # RabbitMQ configuration with credentials and host defined in environment variables
 RABBITMQ_URL = f"amqp://{os.environ['RABBITMQ_USER']}:{os.environ['RABBITMQ_PASS']}@{os.environ['RABBITMQ_HOST']}/"
-QUEUE_NAME = "mensagens"
+QUEUE_NAME = "messages"
 
 async def process_incoming_message(message: aio_pika.IncomingMessage):
     """
@@ -32,15 +32,15 @@ async def process_incoming_message(message: aio_pika.IncomingMessage):
 
     if body:
         parsed_message = json.loads(body)
-        created_user = parsed_message['usuario']
+        created_user = parsed_message['user']
 
         # Gets a database session
         session: Session = next(get_session())
         try:
             # Creates a new user with the data from the message
-            user_model = UsuarioModel(
+            user_model = UserModel(
                 id=created_user['id'],
-                nome=created_user['nome'],
+                name=created_user['name'],
                 email=created_user['email']
             )
 
@@ -72,10 +72,10 @@ async def consume(loop):
     except Exception as e:
         logger.error(f"Consumer error: {e}")
 
-@app.get("/listar_usuarios")
-async def listar_usuarios(session: Session = Depends(get_session)):
+@app.get("/list_users")
+async def list_users(session: Session = Depends(get_session)):
     """Returns the list of users registered in the database."""
-    return session.query(UsuarioModel).all()
+    return session.query(UserModel).all()
 
 @app.on_event("startup")
 async def startup_event():
