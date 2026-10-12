@@ -45,7 +45,6 @@ async def process_incoming_message(message: aio_pika.IncomingMessage):
                 id=created_user["id"],
                 name=created_user["name"],
                 email=created_user["email"],
-                password=created_user.get("password", "")
             )
 
             session.add(user_model)
