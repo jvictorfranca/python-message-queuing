@@ -1,36 +1,14 @@
 services:
-  microsservico_1:
-    container_name: microsservico_1
+  microservice_1:
+    container_name: microservice_1
     build: .
     volumes:
-      - ./microsservico_1:/code/app # Monta o diretório local no contêiner
+      - ./microservice_1:/code/app
     ports:
-      - "8000:8000" # Expõe a porta do microsserviço
-    working_dir: /code # Define o diretório de trabalho
-    environment:
-      - DATABASE_URL_MICROSSERVICO_1=${DATABASE_URL_MICROSSERVICO_1} # URL do banco de dados
-      - RABBITMQ_HOST=${RABBITMQ_HOST} # Host do RabbitMQ
-      - RABBITMQ_USER=${RABBITMQ_USER} # Usuário do RabbitMQ
-      - RABBITMQ_PASS=${RABBITMQ_PASS} # Senha do RabbitMQ
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload # Inicia a aplicação com Uvicorn
-    depends_on:
-      rabbitmq:
-        condition: service_healthy # Aguarda o RabbitMQ estar saudável antes de iniciar
-      db_microsservico_1:
-        condition: service_started # Aguarda o banco estar iniciado
-    networks:
-      - comunicacao_microsservicos
-
-  microsservico_2:
-    container_name: microsservico_2
-    build: .
-    volumes:
-      - ./microsservico_2:/code/app # Monta o diretório local no contêiner
-    ports:
-      - "9000:8000" # Expõe a porta do microsserviço
+      - "8000:8000"
     working_dir: /code
     environment:
-      - DATABASE_URL_MICROSSERVICO_2=${DATABASE_URL_MICROSSERVICO_2}
+      - DATABASE_URL_MICROSERVICE_1=${DATABASE_URL_MICROSERVICE_1}
       - RABBITMQ_HOST=${RABBITMQ_HOST}
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASS=${RABBITMQ_PASS}
@@ -38,29 +16,51 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      db_microsservico_2:
+      db_microservice_1:
         condition: service_started
     networks:
-      - comunicacao_microsservicos
+      - microservices_communication
 
-  db_microsservico_1:
-    image: postgres:13-alpine
-    container_name: db_microsservico_1
+  microservice_2:
+    container_name: microservice_2
+    build: .
     volumes:
-      - postgres_volume_1:/var/lib/postgresql/data/ # Persistência de dados
+      - ./microservice_2:/code/app
+    ports:
+      - "9000:8000"
+    working_dir: /code
+    environment:
+      - DATABASE_URL_MICROSERVICE_2=${DATABASE_URL_MICROSERVICE_2}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db_microservice_2:
+        condition: service_started
+    networks:
+      - microservices_communication
+
+  db_microservice_1:
+    image: postgres:13-alpine
+    container_name: db_microservice_1
+    volumes:
+      - postgres_volume_1:/var/lib/postgresql/data/
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     ports:
-      - "5432:5432" # Porta padrão do PostgreSQL
-    restart: always # Reinicia o banco automaticamente se houver falha
+      - "5432:5432"
+    restart: always
     networks:
-      - comunicacao_microsservicos
+      - microservices_communication
 
-  db_microsservico_2:
+  db_microservice_2:
     image: postgres:13-alpine
-    container_name: db_microsservico_2
+    container_name: db_microservice_2
     volumes:
       - postgres_volume_2:/var/lib/postgresql/data/
     environment:
@@ -68,30 +68,30 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     ports:
-      - "5433:5432" # Banco separado na porta 5433 para evitar conflito com o outro banco
+      - "5433:5432"
     restart: always
     networks:
-      - comunicacao_microsservicos
+      - microservices_communication
 
   rabbitmq:
     container_name: rabbitmq
     image: rabbitmq:3-management
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER} # Usuário do RabbitMQ
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS} # Senha do RabbitMQ
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
     ports:
-      - "5672:5672" # Porta de comunicação entre serviços
-      - "15672:15672" # Interface de gerenciamento do RabbitMQ
+      - "5672:5672"
+      - "15672:15672"
     healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"] # Verifica se o RabbitMQ está funcionando
+      test: ["CMD", "rabbitmqctl", "status"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - comunicacao_microsservicos
+      - microservices_communication
 
 networks:
-  comunicacao_microsservicos:
+  microservices_communication:
 
 volumes:
   postgres_volume_1:

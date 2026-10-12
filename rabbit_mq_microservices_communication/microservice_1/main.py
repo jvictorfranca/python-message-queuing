@@ -4,7 +4,7 @@ import json
 import os
 from sqlalchemy.orm import Session
 from app.database import get_session, Base, engine
-from app.models import UsuarioModel
+from app.models import UserModel
 from uuid import uuid4
 import logging
 
@@ -52,11 +52,17 @@ async def create_user(name: str, email: str, password: str, session: Session = D
     - Sends the user data to the RabbitMQ queue.
     """
     try:
-        user_model = UsuarioModel(id=uuid4(), nome=name, email=email, password=password)
+        user_model = UserModel(
+            id=uuid4(),
+            name=name,
+            email=email,
+            password=password
+        )
         session.add(user_model)
         session.commit()
     except Exception as e:
         session.rollback()
+        logger.error(f"Error creating user: {e}")
         return {"error": str(e)}
 
     # Publishes the new user's data to RabbitMQ
@@ -67,7 +73,7 @@ async def create_user(name: str, email: str, password: str, session: Session = D
             aio_pika.Message(body=json.dumps({
                 "user": {
                     "id": str(user_model.id),
-                    "name": user_model.nome,
+                    "name": user_model.name,
                     "email": user_model.email
                 }
             }).encode()),
@@ -80,7 +86,7 @@ async def list_users(session: Session = Depends(get_session)):
     """
     Returns a list of all users registered in the database.
     """
-    return session.query(UsuarioModel).all()
+    return session.query(UserModel).all()
 
 @app.on_event("startup")
 async def startup_event():

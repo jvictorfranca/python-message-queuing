@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 import os
 
 # Retrieves the database URL from the environment variable
-DATABASE_URL = os.environ.get("DATABASE_URL_MICROSSERVICO_2")
+DATABASE_URL = os.environ.get("DATABASE_URL_MICROSERVICE_1")
 
 # Creates the engine to manage the database connection
 engine = create_engine(DATABASE_URL)

@@ -7,7 +7,6 @@ import logging
 from sqlalchemy.orm import Session
 from app.database import get_session, Base, engine
 from app.models import UserModel
-from uuid import uuid4
 
 # Logger configuration to record events and errors
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -22,40 +21,49 @@ QUEUE_NAME = "messages"
 async def process_incoming_message(message: aio_pika.IncomingMessage):
     """
     Processes messages received from the RabbitMQ queue.
-    - Reads and acknowledges (ack) the message.
-    - Decodes the JSON and extracts the user data.
+    - Decodes the JSON message and extracts the user data.
     - Inserts the user into the database.
+    - Acknowledges the message after successful processing.
     """
-    message.ack()  # Acknowledges receipt of the message
-    body = message.body
     logger.info("Received message")
 
-    if body:
-        parsed_message = json.loads(body)
-        created_user = parsed_message['user']
+    async with message.process():
+        if not message.body:
+            logger.warning("Received an empty message")
+            return
+
+        parsed_message = json.loads(message.body)
+        created_user = parsed_message["user"]
 
         # Gets a database session
-        session: Session = next(get_session())
+        session_generator = get_session()
+        session: Session = next(session_generator)
+
         try:
             # Creates a new user with the data from the message
             user_model = UserModel(
-                id=created_user['id'],
-                name=created_user['name'],
-                email=created_user['email']
+                id=created_user["id"],
+                name=created_user["name"],
+                email=created_user["email"],
+                password=created_user.get("password", "")
             )
 
             session.add(user_model)
             session.commit()
-            logger.info(f"User {user_model.id} created successfully.")
+
+            logger.info("User %s created successfully.", user_model.id)
+            logger.info("Message content: %s", parsed_message)
+
         except Exception as e:
             session.rollback()
-            logger.error(f"Error processing message: {str(e)}")
+            logger.error("Error processing message: %s", e)
+            raise
+
         finally:
             session.close()
+            session_generator.close()
 
-        logger.info(f"Message content: {parsed_message}")
-
-async def consume(loop):
+async def consume():
     """
     Initializes the RabbitMQ message consumer.
     - Establishes a connection to RabbitMQ.
@@ -63,14 +71,18 @@ async def consume(loop):
     - Calls 'process_incoming_message' when a new message arrives.
     """
     try:
-        connection = await aio_pika.connect_robust(RABBITMQ_URL, loop=loop)
+        connection = await aio_pika.connect_robust(RABBITMQ_URL)
         channel = await connection.channel()
-        queue = await channel.declare_queue(QUEUE_NAME)
+        queue = await channel.declare_queue(QUEUE_NAME, durable=True)
+
         await queue.consume(process_incoming_message, no_ack=False)
         logger.info("Waiting for messages...")
+
         return connection
-    except Exception as e:
-        logger.error(f"Consumer error: {e}")
+
+    except Exception:
+        logger.exception("Consumer error")
+        raise
 
 @app.get("/list_users")
 async def list_users(session: Session = Depends(get_session)):
@@ -87,7 +99,23 @@ async def startup_event():
     Base.metadata.create_all(bind=engine)
     logger.info("Tables created successfully.")
 
-    # Gets the current event loop and starts consuming RabbitMQ messages
-    loop = asyncio.get_running_loop()
-    task = loop.create_task(consume(loop=loop))
-    await task
+    # Starts the RabbitMQ consumer in the background
+    app.state.rabbitmq_task = asyncio.create_task(consume())
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Closes the RabbitMQ consumer when the service shuts down."""
+    task = getattr(app.state, "rabbitmq_task", None)
+
+    if task:
+        task.cancel()
+        try:
+            connection = await task
+        except asyncio.CancelledError:
+            connection = None
+        except Exception:
+            logger.exception("Error while shutting down the RabbitMQ consumer")
+            connection = None
+
+        if connection and not connection.is_closed:
+            await connection.close()
